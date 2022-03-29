@@ -14,12 +14,10 @@ from linebot.models import (
 )
 
 app = Flask(__name__)  # 建立Flask物件
-
 accessCode = TokenAccess()
 
 # Line Developers 內的 setting 查詢
 line_bot_api = LineBotApi(accessCode.token)
-
 handler = WebhookHandler(accessCode.web)
 
 # Line Message API內中的issue中查詢
@@ -58,7 +56,6 @@ def handle_message(event):
             text_message)
 
     elif '@基金' in event.message.text:
-
         category = event.message.text.replace('@基金-', '')
 
         group_ids = {
@@ -86,8 +83,6 @@ def handle_message(event):
 
 
     elif '@Model A 告訴我股票損益情況' in event.message.text:
-
-
         df = get_daily_prices(datetime.today().strftime('%Y%m%d'))
 
         if df is None:
@@ -105,17 +100,12 @@ def handle_message(event):
             '2330': 500.00
         }
 
-        message = '我的股票投資組合'
-
+        message = '您的股票投資組合'
         for stock_id, buy_price in my_stocks.items():
-
             current_price = df.loc[stock_id, '收盤價'].item()
-
             期初投入 += buy_price
             目前損益 += current_price
-
             message += '\n\n 證券代號：{}\n買入價格為：{} | 目前價格為：{}'.format(stock_id, buy_price, current_price)
-
         message += '\n\n成本金額：{}\n目前損益：{}\n未實現損益：{}\n報酬率：{}%'.format(
             round(期初投入*1000),
             round(目前損益*1000),
@@ -143,7 +133,6 @@ def handle_message(event):
             event.reply_token,text_message)
 
     elif '@利率-' in event.message.text:
-
         currency = event.message.text.replace('@利率-', '')
         df = bestRate(currency)
 
@@ -176,7 +165,6 @@ def handle_message(event):
 
     elif "@匯率-" in event.message.text:
         currency = event.message.text.replace('@匯率-', "")
-        global currency_ch
 
         if currency == '美元':
             currency_ch = 'USD'
@@ -206,14 +194,12 @@ def handle_message(event):
             currency_ch = 'ZAR'
 
         df = get_rate(currency, currency_ch)
-
         message = '{}當前兌台匯率'.format(currency)
 
         for index, row in df.iterrows():
             message += "\n銀行買入:{} \n銀行賣出:{}".format(row['銀行買入'], row['銀行賣出'])
 
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=message))
-
     else:
         line_bot_api.reply_message(event.reply_token,TextSendMessage(text=event.message.text))
 
@@ -236,7 +222,6 @@ def get_bestFunds(group_id):
     one_yrs = three_ys.sort_values('一年', ascending=False).head(int(len(three_ys) * 0.5))
     six_ms = one_yrs.sort_values('六個月', ascending=False).head(int(len(one_yrs) * 0.5))
     three_ms = six_ms.sort_values('三個月', ascending=False).head(int(len(six_ms)))
-
     return three_ms.sort_values('年化標準差三年(原幣)', ascending=True).head(int(len(three_ms)))
 
 def get_daily_prices(date):
@@ -308,7 +293,6 @@ def bestRate(currency):
         '銀行': rate.idxmax(),
         '利率': rate.max()
     })
-
     return highestUSDRate
 
 def Esun_Rate():
