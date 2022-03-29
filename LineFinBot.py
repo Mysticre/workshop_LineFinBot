@@ -1,6 +1,6 @@
 import pandas as pd
 import requests
-
+from tokenAccess import TokenAccess
 from datetime import datetime
 from flask import Flask, request, abort
 from linebot import (
@@ -15,11 +15,12 @@ from linebot.models import (
 
 app = Flask(__name__)  # 建立Flask物件
 
-line_bot_api = LineBotApi(
-    'EPviUVDJ5SL6rfvx3SaD1gJe9J8RVDdPALbeaRBuDl9N9+Zsk+/VwMmDijJlGBpYf0fIu28FUlmymtgaqdOGf1XatNybU5lSZ+JmI81NGBBmdxbxp0Rvs3TdYlvuQyIglqeN3AajSejZ0DNdNPrAUAdB04t89/1O/w1cDnyilFU=')
-# Line Developers 內的 setting 查詢
+accessCode = TokenAccess()
 
-handler = WebhookHandler('5d82d7438d148061bd98a8be93a94ab6')
+# Line Developers 內的 setting 查詢
+line_bot_api = LineBotApi(accessCode.token)
+
+handler = WebhookHandler(accessCode.web)
 
 # Line Message API內中的issue中查詢
 @app.route("/callback", methods=['POST'])
@@ -43,9 +44,8 @@ def callback():
 
 @handler.add(MessageEvent, message=TextMessage)
 
-def handle_message(event, stock_id=None, buy_price=None):
+def handle_message(event):
 
-    global currency_ch
     if event.message.text == '@Model A 告訴我推薦的基金':
         text_message = TextSendMessage(text='請選擇基金類別',
                                        quick_reply=QuickReply(items=[
@@ -68,9 +68,7 @@ def handle_message(event, stock_id=None, buy_price=None):
         }
 
         group_id = group_ids[category]
-
         df = get_bestFunds(group_id)
-
         message = '{}推薦基金(報酬率 %)'.format(category)
 
         num = 1
@@ -79,9 +77,7 @@ def handle_message(event, stock_id=None, buy_price=None):
             message += '\n\n第{}名\n{}\n三個月：{}\n六個月：{}\n一年：{}\n三年：{}'.format(num, index,
                                                                            row['三個月'], row['六個月'],
                                                                            row['一年'], row['三年'])
-
             num += 1
-
 
         line_bot_api.reply_message(
             event.reply_token,
@@ -91,26 +87,27 @@ def handle_message(event, stock_id=None, buy_price=None):
 
     elif '@Model A 告訴我股票損益情況' in event.message.text:
 
+
         df = get_daily_prices(datetime.today().strftime('%Y%m%d'))
 
         if df is None:
             line_bot_api.reply_message(
                 event.reply_token,
-                TextSendMessage(text='今天沒有目標收盤價'))
+                TextSendMessage(text='今天無收盤價資訊'))
             return None
 
         期初投入 = 0
         目前損益 = 0
 
         my_stocks = {
-            '2317': 88,
-            '2308': 210,
-            '2330': 500
+            '0050': 88.00,
+            '2308': 210.00,
+            '2330': 500.00
         }
 
-        message = '我的股票'
+        message = '我的股票投資組合'
 
-        for stock_id. buy_price in my_stocks.items():
+        for stock_id, buy_price in my_stocks.items():
 
             current_price = df.loc[stock_id, '收盤價'].item()
 
@@ -119,11 +116,12 @@ def handle_message(event, stock_id=None, buy_price=None):
 
             message += '\n\n 證券代號：{}\n買入價格為：{} | 目前價格為：{}'.format(stock_id, buy_price, current_price)
 
-        message += '\n\n 成本金額：{}\n目前損益：{}\n未實現損益：{}\n報酬率：{}\n'.format(
+        message += '\n\n成本金額：{}\n目前損益：{}\n未實現損益：{}\n報酬率：{}%'.format(
             round(期初投入*1000),
             round(目前損益*1000),
             round((目前損益-期初投入)*1000),
-            round(((((目前損益-期初投入)/期初投入))*100), 2))
+            round(((((目前損益-期初投入)/期初投入))*100), 2)
+        )
 
         line_bot_api.reply_message(
             event.reply_token,
@@ -159,67 +157,65 @@ def handle_message(event, stock_id=None, buy_price=None):
 
     elif event.message.text == '@Model A 告訴我現在匯率':
         text_message = TextSendMessage(text='請選擇幣別', quick_reply=QuickReply(items=[
-            QuickReplyButton(action=MessageAction(label="美元(USD)",text="@匯率-USD")),
-            QuickReplyButton(action=MessageAction(label="人民幣(CNY)", text="@匯率-CNY")),
-            QuickReplyButton(action=MessageAction(label="澳幣(AUD)", text="@匯率-AUD")),
-            QuickReplyButton(action=MessageAction(label="港幣(HKD)", text="@匯率-HKD")),
-            QuickReplyButton(action=MessageAction(label="新加坡幣(SGD)", text="@匯率-SGD")),
-            QuickReplyButton(action=MessageAction(label="日圓(JPY)", text="@匯率-JPY")),
-            QuickReplyButton(action=MessageAction(label="歐元(EUR)", text="@匯率-EUR")),
-            QuickReplyButton(action=MessageAction(label="英鎊(GBP)", text="@匯率-GBP")),
-            QuickReplyButton(action=MessageAction(label="南非幣(ZAR)", text="@匯率-ZAR")),
-            QuickReplyButton(action=MessageAction(label="泰銖(THB)", text="@匯率-THB")),
-            QuickReplyButton(action=MessageAction(label="紐西蘭幣(NZD)", text="@匯率-NZD")),
-            QuickReplyButton(action=MessageAction(label="加幣(CAD)", text="@匯率-CAD")),
-            QuickReplyButton(action=MessageAction(label="瑞士法郎(CHF)", text="@匯率-CHF"))
+            QuickReplyButton(action=MessageAction(label="美元(USD)",text="@匯率-美元")),
+            QuickReplyButton(action=MessageAction(label="人民幣(CNY)", text="@匯率-人民幣")),
+            QuickReplyButton(action=MessageAction(label="澳幣(AUD)", text="@匯率-澳幣")),
+            QuickReplyButton(action=MessageAction(label="港幣(HKD)", text="@匯率-港幣")),
+            QuickReplyButton(action=MessageAction(label="新加坡幣(SGD)", text="@匯率-新加坡幣")),
+            QuickReplyButton(action=MessageAction(label="日圓(JPY)", text="@匯率-日圓")),
+            QuickReplyButton(action=MessageAction(label="歐元(EUR)", text="@匯率-歐元")),
+            QuickReplyButton(action=MessageAction(label="英鎊(GBP)", text="@匯率-英鎊")),
+            QuickReplyButton(action=MessageAction(label="南非幣(ZAR)", text="@匯率-南非幣")),
+            QuickReplyButton(action=MessageAction(label="泰銖(THB)", text="@匯率-泰銖")),
+            QuickReplyButton(action=MessageAction(label="紐西蘭幣(NZD)", text="@匯率-紐西蘭幣")),
+            QuickReplyButton(action=MessageAction(label="加幣(CAD)", text="@匯率-加幣")),
+            QuickReplyButton(action=MessageAction(label="瑞士法郎(CHF)", text="@匯率-瑞士法郎")),
         ]))
 
         line_bot_api.reply_message(event.reply_token, text_message)
 
     elif "@匯率-" in event.message.text:
         currency = event.message.text.replace('@匯率-', "")
+        global currency_ch
 
-        if currency == 'USD':
-            currency_ch = '美元'
-        elif currency == 'CNY':
-            currency_ch = '人民幣'
-        elif currency == 'AUD':
-            currency_ch = '澳幣'
-        elif currency == 'HKD':
-            currency_ch = '港幣'
-        elif currency == 'SGD':
-            currency_ch = '新加坡幣'
-        elif currency == 'JPY':
-            currency_ch = '日圓'
-        elif currency == 'EUR':
-            currency_ch = '歐元'
-        elif currency == 'GBP':
-            currency_ch = '英鎊'
-        elif currency == 'ZAR':
-            currency_ch = '南非幣'
-        elif currency == 'THB':
-            currency_ch = '泰銖'
-        elif currency == 'NZD':
-            currency_ch = '紐西蘭幣'
-        elif currency == 'CAD':
-            currency_ch = '加幣'
-        elif currency == 'CHF':
-            currency_ch = '瑞士法郎'
+        if currency == '美元':
+            currency_ch = 'USD'
+        elif currency == '人民幣':
+            currency_ch = 'CNY'
+        elif currency == '澳幣':
+            currency_ch = 'AUD'
+        elif currency == '港幣':
+            currency_ch = 'HKD'
+        elif currency == '新加坡幣':
+            currency_ch = 'SGD'
+        elif currency == '日圓':
+            currency_ch = 'JPY'
+        elif currency == '歐元':
+            currency_ch = 'EUR'
+        elif currency == '英鎊':
+            currency_ch = 'GBP'
+        elif currency == '瑞士法郎':
+            currency_ch = 'CHF'
+        elif currency == '加幣':
+            currency_ch = 'CAD'
+        elif currency == '紐西蘭幣':
+            currency_ch = 'NZD'
+        elif currency == '泰銖':
+            currency_ch = 'THB'
+        elif currency == '南非幣':
+            currency_ch = 'ZAR'
 
         df = get_rate(currency, currency_ch)
 
-        message = '{}匯率(新台幣)'.format(currency)
+        message = '{}當前兌台匯率'.format(currency)
 
         for index, row in df.iterrows():
-            message += "\n{}：{}".format(row['買賣別'], row['即期匯率'])
-
+            message += "\n銀行買入:{} \n銀行賣出:{}".format(row['銀行買入'], row['銀行賣出'])
 
         line_bot_api.reply_message(event.reply_token, TextSendMessage(text=message))
 
-
     else:
         line_bot_api.reply_message(event.reply_token,TextSendMessage(text=event.message.text))
-
 
 def get_bestFunds(group_id):
     # 可以把基金url的年和日期拔除 他就會去取得最新的基金資訊
@@ -227,23 +223,14 @@ def get_bestFunds(group_id):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
     }
-
     response = requests.get(url, headers=headers)
-
     df = pd.read_html(response.text)[7]
-
     df = df.drop([0, 2], axis=1)  # 刪除兩個columns
-
     df.columns = df.iloc[1]
-
     df.drop([0, 1], inplace=True)  # 有inplace 取代的指令 不需在在儲存至df 會空白
-
     df = df.set_index('基金名稱')
-
     # df.info() 查詢 Datatype 若是obj則不能sort 所以要改DataType為數值
-
     df = df.apply(pd.to_numeric, errors='coerce')  # 這樣就會變成float
-
     # 依照基金績效(長中短)選取與排名
     three_ys = df.sort_values('三年', ascending=False).head(int(len(df) * 0.5))
     one_yrs = three_ys.sort_values('一年', ascending=False).head(int(len(three_ys) * 0.5))
@@ -252,8 +239,7 @@ def get_bestFunds(group_id):
 
     return three_ms.sort_values('年化標準差三年(原幣)', ascending=True).head(int(len(three_ms)))
 
-
-def get_daily_prices(date):  # 那個date的數字要加 / 系統才會認是date ex:2020/10/01
+def get_daily_prices(date):
     url = 'https://www.twse.com.tw/exchangeReport/MI_INDEX'
     payload = {
         'response': 'html',
@@ -263,7 +249,6 @@ def get_daily_prices(date):  # 那個date的數字要加 / 系統才會認是dat
     headers = {
         'user-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
     }
-
     response = requests.get(url, params=payload, headers=headers)
 
     try:  # 用try and except 找出表格如果沒有就return None (表示沒有)
@@ -272,34 +257,11 @@ def get_daily_prices(date):  # 那個date的數字要加 / 系統才會認是dat
         return None
 
     df.columns = df.columns.get_level_values(2)
-
     df.drop(['證券名稱', '漲跌(+/-)'], axis=1, inplace=True)
-
-    df['日期'] = pd.to_datetime(date)
-
-    df.set_index(['日期', '證券代號'], inplace=True)
-
+    df.set_index(['證券代號'], inplace=True)
     df = df.apply(pd.to_numeric, errors='coerce')
-
     df.drop(df[df['收盤價'].isnull()].index, inplace=True)
-
     return df
-
-
-def Tcb_Ex_Rate():
-    url = 'https://www.tcb-bank.com.tw/finance_info/Pages/foreign_spot_rate.aspx'
-
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
-    }
-    response = requests.get(url, headers=headers)
-
-    df = pd.read_html(response.text)[5]
-    df['銀行'] = '合作金庫'
-    df = df.set_index(['銀行', '幣別'])
-
-    return df
-
 
 def Esun_deposit_forex():
     url = 'https://www.esunbank.com.tw/bank/personal/deposit/rate/foreign/deposit-rate'
@@ -307,67 +269,41 @@ def Esun_deposit_forex():
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
     }
-
     response = requests.get(url, headers=headers)
-
-    response.text()
-
+    response.text
     df = pd.read_html(response.text)[0]
-
     df = df.drop([0, 1])  # 丟掉前面兩行
-
     df.columns = ['幣別', '活期', '一週', '二週', '三週', '一個月', '三個月', '六個月', '九個月', '一年']
     # 重新設定欄位名稱
     df['幣別'] = df['幣別'].str.extract('([A-Z]+)')
-
     df['銀行'] = '玉山銀行'
-
     df = df.set_index(['銀行', '幣別'])
-
     df = df.apply(pd.to_numeric, errors='coerce')
-
     return df
-
 
 def TaiwanBank_deposit():
     url = 'https://rate.bot.com.tw/ir?Lang=zh-TW'
     headers = {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
+        'User-Agent':'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
     }
-
     response = requests.get(url, headers=headers)
-
     response.text
-
     df = pd.read_html(response.text)[0]
-
     df = df.drop(df.columns[[-1, -2]], axis=1)  # 刪除多重欄位要包兩層
-
     df.columns = ['幣別', '活期', '一週', '二週', '三週', '一個月', '三個月', '六個月', '九個月', '一年']
-
     df.drop(1)
-
     df['幣別'] = df['幣別'].str.extract('([A-Z]+)')  # 汲取字串 要包一層括號
-
     df['銀行'] = '台灣銀行'
-
     df = df.set_index(['銀行', '幣別'])
-
     df = df.apply(pd.to_numeric, errors='coerce')
-
     return df
 
-
 def bestRate(currency):
-
     玉山 = Esun_deposit_forex()
     台銀 = TaiwanBank_deposit()
-
     bank = pd.concat([玉山, 台銀], sort=False)
     bank = bank[['活期', '一週', '二週', '三週', '一個月', '三個月', '六個月', '九個月', '一年']]
-
     rate = bank[bank.index.get_level_values('幣別') == currency]
-
     highestUSDRate = pd.DataFrame({
         '銀行': rate.idxmax(),
         '利率': rate.max()
@@ -375,33 +311,24 @@ def bestRate(currency):
 
     return highestUSDRate
 
-
-def Tcb_Ex_Rate():
-    url = 'https://www.tcb-bank.com.tw/finance_info/Pages/foreign_spot_rate.aspx'
-
+def Esun_Rate():
+    url = 'https://www.esunbank.com.tw/bank/personal/deposit/rate/forex/foreign-exchange-rates'
     headers = {
         'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/87.0.4280.88 Safari/537.36'
     }
     response = requests.get(url, headers=headers)
-
-    df = pd.read_html(response.text)[5]
-    df['銀行'] = '合作金庫'
+    df = pd.read_html(response.text)[0]
+    df = df.drop(df.columns[[3,4,5,6]], axis=1)
+    df.columns = ['幣別','銀行買入','銀行賣出']
+    df['銀行'] = '玉山銀行'
     df = df.set_index(['銀行', '幣別'])
-    df = df.drop(df.columns[[3, 4, 5, 6, 7, 8]], axis=1)
-
+    df = df.apply(pd.to_numeric, errors='coerce')
     return df
 
 def get_rate(currency, currency_ch):
-    df = Tcb_Ex_Rate ()
-    df1 = df[df.index.get_level_values('幣別')==currency]
-    df2 = df[df.index.get_level_values('幣別')==currency_ch]
-    rt = pd.concat([df1,df2], sort=False)
-    rt = rt.reset_index().drop(['銀行'], axis=1).set_index('幣別')
-    rt['幣別'] = currency
-    rt = rt.set_index(['幣別'])
-
-    return rt
-
+    df = Esun_Rate()
+    dfCurrency = df[df.index.get_level_values('幣別')=='{}({})'.format(currency, currency_ch)]
+    return dfCurrency
 
 if __name__ == "__main__":
     app.run()
