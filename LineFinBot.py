@@ -1,7 +1,7 @@
 import pandas as pd
 import requests
 from tokenAccess import TokenAccess
-from datetime import datetime
+from datetime import datetime, date, time, timedelta
 from flask import Flask, request, abort
 from linebot import (
     LineBotApi, WebhookHandler
@@ -83,7 +83,10 @@ def handle_message(event):
 
 
     elif '@Model A 告訴我股票損益情況' in event.message.text:
-        df = get_daily_prices(datetime.today().strftime('%Y%m%d'))
+
+        today = datetime.today() + timedelta(days=-1)
+        today = today.strftime('%Y%m%d')
+        df = get_daily_prices(today)
 
         if df is None:
             line_bot_api.reply_message(
@@ -100,7 +103,7 @@ def handle_message(event):
             '2330': 500.00
         }
 
-        message = '您的股票投資組合'
+        message = '參考{}收盤價 \n您的股票投資組合狀態為:'.format(today)
         for stock_id, buy_price in my_stocks.items():
             current_price = df.loc[stock_id, '收盤價'].item()
             期初投入 += buy_price
